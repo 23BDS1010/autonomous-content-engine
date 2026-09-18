@@ -6,7 +6,6 @@ from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
-# Initialize the LLM (Use environment variables for safety!)
 llm = ChatGoogleGenerativeAI(
     model="gemini-3.5-flash", 
     api_key="Google Gemini API" # Replace with your actual key
@@ -32,31 +31,6 @@ def get_text(msg_content):
         return get_text(msg_content.content)
     return str(msg_content)
 
-# ==========================================
-# 1. SYSTEM PROMPTS
-# ==========================================
-RESEARCHER_PROMPT = """You are an expert Historical Researcher. 
-Your job is to provide 3-4 fascinating, factual bullet points about the topic the user provides. 
-Keep it concise and focus on details that would make a good story."""
-
-SCRIPTWRITER_PROMPT = """You are an elite short-form video scriptwriter specializing in highly relatable 9:16 vertical content.
-
-Core Directives:
-1. Hook Within 3 Seconds.
-2. Tri-Layer Storytelling: Visual Action, Voiceover (VO), and On-Screen Text (OST).
-3. Visual Style: Describe all actions as a Roblox R6-style render, using a plastic material finish, bright saturated colors, and a 9:16 vertical crop centered on the action.
-
-If the research provided is insufficient to write a script, reply ONLY with: "NEED_RESEARCH".
-
-Output Format for every scene:
-* [SCENE X] - (Duration)
-* ACTION: (Roblox R6 visual description)
-* VO: (Exact spoken script)
-* OST: (Exact text overlay)"""
-
-# ==========================================
-# 2. SPECIALIZED NODES
-# ==========================================
 def researcher_node(state: AgentState):
     print("\n[NODE: Researcher] Gathering historical facts...")
     time.sleep(3)
@@ -71,35 +45,25 @@ def scriptwriter_node(state: AgentState):
     response = llm.invoke(messages_to_send)
     return {"messages": [response]}
 
-# ==========================================
-# 3. ROUTING LOGIC
-# ==========================================
 def routing_logic(state: AgentState):
     last_message = get_text(state["messages"][-1].content)
     
-    # Did the scriptwriter ask for more info?
     if "NEED_RESEARCH" in last_message:
         print("-> ROUTER: Scriptwriter needs more context. Looping back to Researcher.")
-        # We append a prompt asking the researcher to try again
         return "researcher"
         
     print("-> ROUTER: Script is complete. Ending graph.")
     return END
 
-# ==========================================
-# 4. GRAPH CONSTRUCTION
-# ==========================================
+
 workflow = StateGraph(AgentState)
 
-# Add our two specialized agents
 workflow.add_node("researcher", researcher_node)
 workflow.add_node("scriptwriter", scriptwriter_node)
 
-# Connect the flow: Start -> Researcher -> Scriptwriter
 workflow.add_edge(START, "researcher")
 workflow.add_edge("researcher", "scriptwriter")
 
-# Connect the Router to the Scriptwriter's output
 workflow.add_conditional_edges(
     "scriptwriter",
     routing_logic,
